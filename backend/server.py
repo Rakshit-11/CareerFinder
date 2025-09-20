@@ -731,7 +731,7 @@ async def submit_simulation(
 ):
     # Correct answers mapping
     correct_answers = {
-        "business-analysis-1": "5600",
+        "business-analysis-1": "24200",
         "digital-marketing-1": "68%",
         "cybersecurity-1": "password123,admin,letmein",  # Multiple correct passwords
         "paralegal-1": "TechFlow Solutions Inc",
