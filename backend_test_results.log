@@ -1,0 +1,356 @@
+🚀 Starting Project Pathfinder API Testing - All 10 Simulations
+======================================================================
+Test User: test_174438@pathfinder.com
+Username: testuser_174438
+Backend URL: https://tryjobs.preview.emergentagent.com/api
+
+🔍 Testing User Registration...
+   URL: https://tryjobs.preview.emergentagent.com/api/auth/register
+✅ Passed - Status: 200
+   Response: {'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwOThjZTBjOS1hMmFlLTQyOTMtYWI0Yy02ZTkwNzljZDJiNWIiLCJleHAiOjE3NTc2MTQ0ODB9.pdhlz8XSVpJwa8kohIjQM_PYwvKWjE9459xfepzNIQg', 'token_type': 'bearer'}
+   Token received: eyJhbGciOiJIUzI1NiIs...
+
+🔍 Testing Get User Profile...
+   URL: https://tryjobs.preview.emergentagent.com/api/auth/me
+✅ Passed - Status: 200
+   Response: {'id': '098ce0c9-a2ae-4293-ab4c-6e9079cd2b5b', 'email': 'test_174438@pathfinder.com', 'username': 'testuser_174438', 'skill_badges': [], 'completed_simulations': [], 'created_at': '2025-09-11T17:44:39.612000'}
+   User ID: 098ce0c9-a2ae-4293-ab4c-6e9079cd2b5b
+   Username: testuser_174438
+   Skill Badges: 0
+
+🔍 Testing Initialize Simulations...
+   URL: https://tryjobs.preview.emergentagent.com/api/admin/init-simulations
+✅ Passed - Status: 200
+   Response: {'message': 'Initialized 10 career simulations successfully'}
+
+🔍 Testing Get All Simulations...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations
+✅ Passed - Status: 200
+   Response: List with 17 items
+   Found 17 simulations
+   - Calculate Net Profit (business-analysis-1)
+   - Find Mobile Bounce Rate (digital-marketing-1)
+   - Investment Portfolio Analysis (financial-analysis-1)
+   - Investment Portfolio Analysis (financial-analysis-1)
+   - Password Security Assessment (cybersecurity-1)
+   - Password Security Assessment (cybersecurity-1)
+   - Debug Shopping Cart Code (software-dev-1)
+   - Debug Shopping Cart Code (software-dev-1)
+   - Content ROI Analysis (content-marketing-1)
+   - UX Research Analysis (ux-design-1)
+   - UX Research Analysis (ux-design-1)
+   - Customer Satisfaction Correlation (data-science-1)
+   - Customer Satisfaction Correlation (data-science-1)
+   - Contract Review (paralegal-1)
+   - Contract Review (paralegal-1)
+   - Candidate Selection (hr-recruiting-1)
+   - Candidate Selection (hr-recruiting-1)
+
+📁 Testing file download for Calculate Net Profit...
+
+🔍 Testing Download File for business-analysis-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/business-analysis-1/file
+✅ Passed - Status: 200
+   Filename: Q3_Sales_Analysis.xlsx
+   MIME Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+   Content Length: 6932 characters (base64)
+   Decoded Size: 5198 bytes
+
+📁 Testing file download for Find Mobile Bounce Rate...
+
+🔍 Testing Download File for digital-marketing-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/digital-marketing-1/file
+✅ Passed - Status: 200
+   Response: {'filename': 'Website_Analytics_Report.csv', 'content': 'TWV0cmljLFZhbHVlClRvdGFsIFNlc3Npb25zLCI0NSwyMzAiCkRlc2t0b3AgU2Vzc2lvbnMsIjE4LDkyMCIKTW9iaWxlIFNlc3Npb25zLCIyNCw4MTAiClRhYmxldCBTZXNzaW9ucywiMSw1MDAiCkRlc2t0b3AgQm91bmNlIFJhdGUsNDIlCk1vYmlsZSBCb3VuY2UgUmF0ZSw2OCUKVGFibGV0IEJvdW5jZSBSYXRlLDUxJQpBdmcgU2Vzc2lvbiBEdXJhdGlvbiwybSAzNHMKUGFnZSBWaWV3cywiMTI3LDQ1MCIKQ29udmVyc2lvbiBSYXRlLDMuMiUK', 'mime_type': 'text/csv'}
+   Filename: Website_Analytics_Report.csv
+   MIME Type: text/csv
+   Content Length: 336 characters (base64)
+   Decoded Size: 252 bytes
+
+📁 Testing file download for Investment Portfolio Analysis...
+
+🔍 Testing Download File for financial-analysis-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/financial-analysis-1/file
+✅ Passed - Status: 200
+   Filename: Investment_Portfolio_Analysis.xlsx
+   MIME Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+   Content Length: 7212 characters (base64)
+   Decoded Size: 5409 bytes
+
+📁 Testing file download for Investment Portfolio Analysis...
+
+🔍 Testing Download File for financial-analysis-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/financial-analysis-1/file
+✅ Passed - Status: 200
+   Filename: Investment_Portfolio_Analysis.xlsx
+   MIME Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+   Content Length: 7212 characters (base64)
+   Decoded Size: 5409 bytes
+
+📁 Testing file download for Password Security Assessment...
+
+🔍 Testing Download File for cybersecurity-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/cybersecurity-1/file
+✅ Passed - Status: 200
+   Filename: password_hashes.txt
+   MIME Type: text/plain
+   Content Length: 512 characters (base64)
+   Decoded Size: 382 bytes
+
+📁 Testing file download for Password Security Assessment...
+
+🔍 Testing Download File for cybersecurity-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/cybersecurity-1/file
+✅ Passed - Status: 200
+   Filename: password_hashes.txt
+   MIME Type: text/plain
+   Content Length: 512 characters (base64)
+   Decoded Size: 382 bytes
+
+📁 Testing file download for Debug Shopping Cart Code...
+
+🔍 Testing Download File for software-dev-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/software-dev-1/file
+✅ Passed - Status: 200
+   Filename: shopping_cart_debug.py
+   MIME Type: text/x-python-script
+   Content Length: 2460 characters (base64)
+   Decoded Size: 1844 bytes
+
+📁 Testing file download for Debug Shopping Cart Code...
+
+🔍 Testing Download File for software-dev-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/software-dev-1/file
+✅ Passed - Status: 200
+   Filename: shopping_cart_debug.py
+   MIME Type: text/x-python-script
+   Content Length: 2460 characters (base64)
+   Decoded Size: 1844 bytes
+
+📁 Testing file download for Content ROI Analysis...
+
+🔍 Testing Download File for content-marketing-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/content-marketing-1/file
+✅ Passed - Status: 200
+   Filename: Content_Performance_Analysis.xlsx
+   MIME Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+   Content Length: 7148 characters (base64)
+   Decoded Size: 5361 bytes
+
+📁 Testing file download for UX Research Analysis...
+
+🔍 Testing Download File for ux-design-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/ux-design-1/file
+✅ Passed - Status: 200
+   Filename: UX_Research_Report.pdf
+   MIME Type: application/pdf
+   Content Length: 1612 characters (base64)
+   Decoded Size: 1208 bytes
+
+📁 Testing file download for UX Research Analysis...
+
+🔍 Testing Download File for ux-design-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/ux-design-1/file
+✅ Passed - Status: 200
+   Filename: UX_Research_Report.pdf
+   MIME Type: application/pdf
+   Content Length: 1612 characters (base64)
+   Decoded Size: 1208 bytes
+
+📁 Testing file download for Customer Satisfaction Correlation...
+
+🔍 Testing Download File for data-science-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/data-science-1/file
+✅ Passed - Status: 200
+   Filename: Customer_Satisfaction_Dataset.xlsx
+   MIME Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+   Content Length: 10744 characters (base64)
+   Decoded Size: 8058 bytes
+
+📁 Testing file download for Customer Satisfaction Correlation...
+
+🔍 Testing Download File for data-science-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/data-science-1/file
+✅ Passed - Status: 200
+   Filename: Customer_Satisfaction_Dataset.xlsx
+   MIME Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+   Content Length: 10708 characters (base64)
+   Decoded Size: 8029 bytes
+
+📁 Testing file download for Contract Review...
+
+🔍 Testing Download File for paralegal-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/paralegal-1/file
+✅ Passed - Status: 200
+   Filename: Software_License_Agreement.pdf
+   MIME Type: application/pdf
+   Content Length: 2376 characters (base64)
+   Decoded Size: 1781 bytes
+
+📁 Testing file download for Contract Review...
+
+🔍 Testing Download File for paralegal-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/paralegal-1/file
+✅ Passed - Status: 200
+   Filename: Software_License_Agreement.pdf
+   MIME Type: application/pdf
+   Content Length: 2376 characters (base64)
+   Decoded Size: 1781 bytes
+
+📁 Testing file download for Candidate Selection...
+
+🔍 Testing Download File for hr-recruiting-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/hr-recruiting-1/file
+✅ Passed - Status: 200
+   Filename: Candidate_Evaluation_Report.pdf
+   MIME Type: application/pdf
+   Content Length: 1900 characters (base64)
+   Decoded Size: 1423 bytes
+
+📁 Testing file download for Candidate Selection...
+
+🔍 Testing Download File for hr-recruiting-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/hr-recruiting-1/file
+✅ Passed - Status: 200
+   Filename: Candidate_Evaluation_Report.pdf
+   MIME Type: application/pdf
+   Content Length: 1900 characters (base64)
+   Decoded Size: 1423 bytes
+✅ All 10 expected simulations found!
+
+🤖 Testing AI Feedback System with All Simulations...
+Note: AI responses may take 5-10 seconds each...
+
+🎯 Testing Calculate Net Profit...
+   Submitting answer: '5600' for simulation: business-analysis-1
+
+🔍 Testing Submit Answer for business-analysis-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/submit
+✅ Passed - Status: 200
+   Answer: 5600
+   AI Feedback: Excellent work—your calculation of $5600 is spot on, correctly accounting for all revenues minus tot...
+   Is Correct: True
+   🏆 Badge Earned: Business Analysis Specialist
+
+🎯 Testing Find Mobile Bounce Rate...
+   Submitting answer: '68%' for simulation: digital-marketing-1
+
+🔍 Testing Submit Answer for digital-marketing-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/submit
+✅ Passed - Status: 200
+   Answer: 68%
+   AI Feedback: Excellent work—you've correctly identified the mobile bounce rate as 68%, demonstrating a keen eye f...
+   Is Correct: True
+   🏆 Badge Earned: Digital Marketing Analyst
+
+🎯 Testing Investment Portfolio Analysis...
+   Submitting answer: 'HealthPlus Inc' for simulation: financial-analysis-1
+
+🔍 Testing Submit Answer for financial-analysis-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/submit
+✅ Passed - Status: 200
+   Answer: HealthPlus Inc
+   AI Feedback: Excellent work selecting HealthPlus Inc.; you correctly identified the strongest investment by balan...
+   Is Correct: True
+   🏆 Badge Earned: Investment Analysis Professional
+
+🎯 Testing Password Security Assessment...
+   Submitting answer: 'password123,admin,letmein' for simulation: cybersecurity-1
+
+🔍 Testing Submit Answer for cybersecurity-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/submit
+✅ Passed - Status: 200
+   Answer: password123,admin,letmein
+   AI Feedback: Excellent work! You correctly identified the most common and weakest passwords, demonstrating the ex...
+   Is Correct: True
+   🏆 Badge Earned: Cybersecurity Apprentice
+
+🎯 Testing Debug Shopping Cart Code...
+   Submitting answer: '3' for simulation: software-dev-1
+
+🔍 Testing Submit Answer for software-dev-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/submit
+✅ Passed - Status: 200
+   Answer: 3
+   AI Feedback: Excellent work—you correctly identified all 3 critical bugs, which showcases the sharp attention to ...
+   Is Correct: True
+   🏆 Badge Earned: Code Quality Inspector
+
+🎯 Testing Content ROI Analysis...
+   Submitting answer: 'webinar' for simulation: content-marketing-1
+
+🔍 Testing Submit Answer for content-marketing-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/submit
+✅ Passed - Status: 200
+   Answer: webinar
+   AI Feedback: Excellent work identifying the webinar as the top performer for lead generation, as its registration...
+   Is Correct: True
+   🏆 Badge Earned: Content Strategy Expert
+
+🎯 Testing UX Research Analysis...
+   Submitting answer: 'checkout' for simulation: ux-design-1
+
+🔍 Testing Submit Answer for ux-design-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/submit
+✅ Passed - Status: 200
+   Answer: checkout
+   AI Feedback: Excellent work—you correctly identified 'checkout' as the primary pain point, which demonstrates a s...
+   Is Correct: True
+   🏆 Badge Earned: UX Research Specialist
+
+🎯 Testing Customer Satisfaction Correlation...
+   Submitting answer: 'negative' for simulation: data-science-1
+
+🔍 Testing Submit Answer for data-science-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/submit
+✅ Passed - Status: 200
+   Answer: negative
+   AI Feedback: Excellent job—you've correctly identified the core relationship in the data. Your answer is accurate...
+   Is Correct: True
+   🏆 Badge Earned: Data Analysis Professional
+
+🎯 Testing Contract Review...
+   Submitting answer: 'TechFlow Solutions Inc' for simulation: paralegal-1
+
+🔍 Testing Submit Answer for paralegal-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/submit
+✅ Passed - Status: 200
+   Answer: TechFlow Solutions Inc
+   AI Feedback: Excellent work—you've correctly identified the licensor, "TechFlow Solutions Inc." This demonstrates...
+   Is Correct: True
+   🏆 Badge Earned: Legal Document Reviewer
+
+🎯 Testing Candidate Selection...
+   Submitting answer: 'B' for simulation: hr-recruiting-1
+
+🔍 Testing Submit Answer for hr-recruiting-1...
+   URL: https://tryjobs.preview.emergentagent.com/api/simulations/submit
+✅ Passed - Status: 200
+   Answer: B
+   AI Feedback: Excellent work—you correctly identified Candidate B as the strongest overall choice. Your selection ...
+   Is Correct: True
+   🏆 Badge Earned: Talent Acquisition Specialist
+
+🔐 Testing Login with existing credentials...
+
+🔍 Testing User Login...
+   URL: https://tryjobs.preview.emergentagent.com/api/auth/login
+✅ Passed - Status: 200
+   Response: {'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwOThjZTBjOS1hMmFlLTQyOTMtYWI0Yy02ZTkwNzljZDJiNWIiLCJleHAiOjE3NTc2MTQ2NTV9.Z1MgKSv7lTTA5KwhTjWoIRbMQWAnf5Gzge6z_b942fM', 'token_type': 'bearer'}
+   Token received: eyJhbGciOiJIUzI1NiIs...
+
+🔐 Testing Invalid Login...
+
+🔍 Testing Invalid Login...
+   URL: https://tryjobs.preview.emergentagent.com/api/auth/login
+✅ Passed - Status: 401
+   Response: {'detail': 'Incorrect email or password'}
+
+======================================================================
+📊 TEST RESULTS SUMMARY
+======================================================================
+Total Tests Run: 33
+Tests Passed: 33
+Tests Failed: 0
+Success Rate: 100.0%
+🎉 ALL TESTS PASSED!
