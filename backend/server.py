@@ -30,6 +30,8 @@ db = client[os.environ['DB_NAME']]
 
 # JWT Configuration
 SECRET_KEY = os.environ.get('JWT_SECRET', 'your-secret-key-change-in-production')
+if SECRET_KEY == 'your-secret-key-change-in-production':
+    print("WARNING: Using default JWT_SECRET. Set JWT_SECRET environment variable for production.")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -39,6 +41,15 @@ security = HTTPBearer()
 
 # Create the main app without a prefix
 app = FastAPI(title="Project Pathfinder API")
+
+# Add CORS middleware for production
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
@@ -153,14 +164,12 @@ class SubmissionCreate(BaseModel):
     # Accept a loose payload to avoid validation 422 from clients
     answers: Optional[List[Dict[str, Any]]] = None
 
-class SubmissionCreate(BaseModel):
-    simulation_id: str
-    answer: str
-
 class FileDownload(BaseModel):
     filename: str
     content: str  # base64 encoded
     mime_type: str
+
+ 
 
 # Authentication Functions
 def verify_password(plain_password, hashed_password):
@@ -198,6 +207,12 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise credentials_exception
     return User(**user)
 
+@api_router.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "Project Pathfinder API"}
+
+ 
+
 # Local Feedback System
 async def generate_ai_feedback(simulation_id: str, user_answer: str, correct_answer: str = None) -> Dict[str, Any]:
     """Generate local feedback without external AI dependencies"""
@@ -223,8 +238,8 @@ async def generate_ai_feedback(simulation_id: str, user_answer: str, correct_ans
                 matches = set(user_passwords) & set(expected_passwords)
                 is_correct = len(matches) >= 2
                 
-            elif simulation_id in ['se-development-1', 'ds-modeling-1']:
-                # Numeric answers - handle various formats
+            elif simulation_id in ['ds-modeling-1']:
+                # Percentage answers - handle various formats
                 try:
                     user_numeric = user_clean.replace('%', '').replace(' ', '')
                     correct_numeric = correct_clean.replace('%', '').replace(' ', '')
@@ -240,7 +255,7 @@ async def generate_ai_feedback(simulation_id: str, user_answer: str, correct_ans
                 except Exception:
                     is_correct = user_clean == correct_clean
                     
-            elif simulation_id in ['se-debugging-1', 'se-testing-1', 'devops-deployment-1', 'devops-monitoring-1', 'cloud-aws-1', 'cloud-security-1', 'mobile-native-1', 'mobile-cross-1']:
+            elif simulation_id in ['se-debugging-1', 'se-development-1', 'se-testing-1', 'devops-deployment-1', 'devops-monitoring-1', 'cloud-aws-1', 'cloud-security-1', 'mobile-native-1', 'mobile-cross-1']:
                 # Numeric answers
                 try:
                     user_num = int(user_clean)
@@ -269,8 +284,8 @@ async def generate_ai_feedback(simulation_id: str, user_answer: str, correct_ans
         feedback_templates = {
             # Software Engineering
             'se-debugging-1': {
-                'correct': "Excellent debugging skills! You've identified all 3 critical bugs in the shopping cart code. This type of systematic code review is essential for software engineers who need to maintain code quality and prevent production issues.",
-                'incorrect': "Good effort on the debugging challenge! There are 3 bugs: (1) assignment vs comparison operator (= instead of ==), (2) missing negative discount validation, (3) no minimum order validation. Keep practicing code review skills!"
+                'correct': "Excellent debugging skills! You've identified all 5 critical bugs in the shopping cart code. This type of systematic code review is essential for software engineers who need to maintain code quality and prevent production issues.",
+                'incorrect': "Good effort on the debugging challenge! There are 5 bugs: (1) assignment vs comparison operator (= instead of ==), (2) missing negative discount validation, (3) no minimum order validation, (4) race condition in cart updates, (5) missing null check for empty cart. Keep practicing code review skills!"
             },
             'se-development-1': {
                 'correct': "Perfect! You've correctly identified HTTP 200 as the success status code for login. Understanding HTTP status codes and API design is fundamental for backend developers building robust web services.",
@@ -1787,6 +1802,16 @@ async def submit_simulation(
                 feedback_text = ""
                 # Per-question feedback overrides for richer guidance
                 per_question_feedback = {
+                    "se-debugging-1": {
+                        "q1": {
+                            "correct": "There are 5 critical logic issues impacting reliability.",
+                            "incorrect": "Count distinct logic bugs across functions; check assignment vs comparison, input validation, concurrency, and empty cart checks."
+                        },
+                        "q2": {
+                            "correct": "Negative discount validation is missing; values below 0 must be rejected.",
+                            "incorrect": "Review discount handling: add validation to prevent negative or over-100% discounts."
+                        }
+                    },
                     "ds-analysis-1": {
                         "q1": {
                             "correct": "Spot on — Monthly_Charges shows the strongest positive correlation with churn.",
@@ -1829,11 +1854,20 @@ async def submit_simulation(
             if not is_q_correct:
                 all_correct = False
 
+        # Build overall AI feedback with clear rules:
+        # - If all questions are correct, show a concise completion summary (do not repeat per-question feedback)
+        # - Otherwise, join per-question feedback and add a fallback if still empty
+        joined = "; ".join([p.get("feedback", "") for p in per_question if p.get("feedback")])
+        if all_correct:
+            ai_text = f"Excellent work! You completed '{simulation.get('title', 'this simulation')}' and answered all questions correctly."
+        else:
+            ai_text = joined or "Good effort! Review the guidance above for incorrect questions and try again."
+
         submission = SimulationSubmission(
             user_id=current_user.id,
             simulation_id=simulation_id,
             answer=json.dumps(per_question),
-            ai_feedback="; ".join([p.get("feedback", "") for p in per_question if p.get("feedback")]),
+            ai_feedback=ai_text,
             is_correct=all_correct,
         )
 
@@ -1875,11 +1909,13 @@ async def submit_simulation(
         await db.submissions.insert_one(submission.dict())
         return submission
 
+    # end multi-question path
+
     # Correct answers mapping for tech simulations
     # Single-answer fallback path
     correct_answers = {
         # Software Engineering
-        "se-debugging-1": "3",  # Number of bugs in shopping cart
+        "se-debugging-1": "5",  # Number of bugs in shopping cart
         "se-development-1": "200",  # HTTP status code for successful login
         "se-testing-1": "7",  # Number of test cases for calculator
         
@@ -2052,19 +2088,9 @@ async def initialize_simulations():
             "instructions": "1. Download the Python code file\n2. Carefully review each function for logical errors\n3. Count the total number of bugs present\n4. Submit the number of bugs found",
             "task_type": "debugging",
             "expected_answer_type": "number",
-            "hints": [
-                "Look for assignment vs comparison in conditionals.",
-                "Validate discount inputs before applying them.",
-                "Consider edge cases during checkout (e.g., minimum order)."
-            ],
-            "checklist": [
-                "Scan functions for logic errors",
-                "Verify discount validation",
-                "Confirm checkout constraints"
-            ],
             "questions": [
-                {"id": "q1", "prompt": "How many logic bugs are present?", "expected_answer_type": "number", "correct_answer": "3", "hints": ["Scan for assignment vs comparison."]},
-                {"id": "q2", "prompt": "Name one validation missing in discount handling.", "expected_answer_type": "text", "correct_answer": "negative discount", "hints": ["Think about bounds."]}
+                {"id": "q1", "prompt": "How many critical bugs are hiding in this code that could crash the system under load?", "expected_answer_type": "number", "correct_answer": "5"},
+                {"id": "q2", "prompt": "What's the most dangerous validation missing that hackers could exploit?", "expected_answer_type": "text", "correct_answer": "negative discount validation"}
             ]
         },
         {
@@ -2079,19 +2105,10 @@ async def initialize_simulations():
             "instructions": "1. Download the requirements document\n2. Implement the authentication endpoint\n3. Add proper input validation and error handling\n4. Submit the HTTP status code for successful login",
             "task_type": "development",
             "expected_answer_type": "number",
-            "hints": [
-                "Return success on credential match; what's the standard HTTP code?",
-                "Validate email/password formats before DB lookup.",
-                "Remember to hash and compare passwords (bcrypt)."
-            ],
-            "checklist": [
-                "Validate request body",
-                "Check credentials",
-                "Return proper status code"
-            ],
             "questions": [
-                {"id": "q1", "prompt": "What HTTP status code indicates successful login?", "expected_answer_type": "number", "correct_answer": "200", "hints": ["2xx class indicates success."]},
-                {"id": "q2", "prompt": "Should passwords be stored in plaintext? (yes/no)", "expected_answer_type": "text", "correct_answer": "no", "hints": ["Hashing is required."]}
+                {"id": "q1", "prompt": "What HTTP status code indicates successful login?", "expected_answer_type": "number", "correct_answer": "200"},
+                {"id": "q2", "prompt": "Should passwords be stored in plaintext? (yes/no)", "expected_answer_type": "text", "correct_answer": "no"},
+                {"id": "q3", "prompt": "What security measure prevents brute force attacks?", "expected_answer_type": "text", "correct_answer": "rate limiting"}
             ]
         },
         {
@@ -2106,19 +2123,9 @@ async def initialize_simulations():
             "instructions": "1. Download the calculator class code\n2. Write unit tests for all methods\n3. Include edge cases and error conditions\n4. Submit the total number of test cases you would write",
             "task_type": "testing",
             "expected_answer_type": "number",
-            "hints": [
-                "Don't forget division by zero and sqrt of negatives.",
-                "Track history mutations across operations.",
-                "Include large numbers/decimals edge cases."
-            ],
-            "checklist": [
-                "Cover basic operations",
-                "Test error conditions",
-                "Verify history behavior"
-            ],
             "questions": [
-                {"id": "q1", "prompt": "How many unit tests will you write?", "expected_answer_type": "number", "correct_answer": "7", "hints": ["List error conditions too."]},
-                {"id": "q2", "prompt": "Name one edge case to test.", "expected_answer_type": "text", "correct_answer": "division by zero", "hints": ["Think divide()"]}
+                {"id": "q1", "prompt": "How many unit tests will you write?", "expected_answer_type": "number", "correct_answer": "7"},
+                {"id": "q2", "prompt": "Name one edge case to test.", "expected_answer_type": "text", "correct_answer": "division by zero"}
             ]
         },
         
@@ -2135,19 +2142,9 @@ async def initialize_simulations():
             "instructions": "1. Download the password hash file\n2. Use the provided wordlist to crack the MD5 hashes\n3. Identify at least 3 cracked passwords\n4. Submit the passwords separated by commas",
             "task_type": "security",
             "expected_answer_type": "list",
-            "hints": [
-                "Start with the provided wordlist and MD5 hashes.",
-                "Common weak passwords often appear in breaches.",
-                "Normalization (lowercase, trimming) helps compare."
-            ],
-            "checklist": [
-                "Load hash list",
-                "Run wordlist against hashes",
-                "List at least 3 cracked passwords"
-            ],
             "questions": [
-                {"id": "q1", "prompt": "Provide at least two cracked passwords (comma-separated)", "expected_answer_type": "list", "correct_answer": "password123,admin,letmein", "hints": ["Use the given wordlist."]},
-                {"id": "q2", "prompt": "What hash algorithm is used?", "expected_answer_type": "text", "correct_answer": "md5", "hints": ["Legacy algorithm."]}
+                {"id": "q1", "prompt": "Provide at least two cracked passwords (comma-separated)", "expected_answer_type": "list", "correct_answer": "password123,admin,letmein"},
+                {"id": "q2", "prompt": "What hash algorithm is used?", "expected_answer_type": "text", "correct_answer": "md5"}
             ]
         },
         {
@@ -2162,19 +2159,10 @@ async def initialize_simulations():
             "instructions": "1. Download the network configuration file\n2. Analyze the setup for common vulnerabilities\n3. Identify the most critical security issue\n4. Submit the vulnerability type (e.g., 'open_port', 'weak_encryption', 'default_credentials')",
             "task_type": "security",
             "expected_answer_type": "text",
-            "hints": [
-                "Look for default credentials and weak management interfaces.",
-                "Is any service exposed without encryption?",
-                "Consider the easiest path to compromise first."
-            ],
-            "checklist": [
-                "Review router settings",
-                "Check firewall and services",
-                "Identify most critical issue"
-            ],
             "questions": [
-                {"id": "q1", "prompt": "What is the most critical vulnerability?", "expected_answer_type": "text", "correct_answer": "default_credentials", "hints": ["Router credentials."]},
-                {"id": "q2", "prompt": "Is telnet enabled? (yes/no)", "expected_answer_type": "text", "correct_answer": "yes", "hints": ["Legacy protocol."]}
+                {"id": "q1", "prompt": "What is the most critical vulnerability?", "expected_answer_type": "text", "correct_answer": "default_credentials"},
+                {"id": "q2", "prompt": "Is telnet enabled? (yes/no)", "expected_answer_type": "text", "correct_answer": "yes"},
+                {"id": "q3", "prompt": "How many minutes would it take to exploit this network?", "expected_answer_type": "number", "correct_answer": "5"}
             ]
         },
         
@@ -2191,20 +2179,10 @@ async def initialize_simulations():
             "instructions": "1. Download the customer dataset\n2. Analyze the correlation between features and churn\n3. Identify the strongest predictor of churn\n4. Submit the feature name with highest correlation",
             "task_type": "analysis",
             "expected_answer_type": "text",
-            "hints": [
-                "Compute correlations between features and churn.",
-                "Consider pricing-related variables.",
-                "Validate with simple plots or stats."
-            ],
-            "checklist": [
-                "Load dataset",
-                "Compute correlations",
-                "Pick strongest predictor"
-            ],
             "questions": [
-                {"id": "q1", "prompt": "Which feature has the strongest correlation with churn?", "expected_answer_type": "text", "correct_answer": "Monthly_Charges", "hints": ["Consider pricing variables."]},
-                {"id": "q2", "prompt": "Is churn higher for month-to-month contracts? (yes/no)", "expected_answer_type": "text", "correct_answer": "yes", "hints": ["Contract type matters."]},
-                {"id": "q3", "prompt": "Name one feature that reduces churn risk.", "expected_answer_type": "text", "correct_answer": "online_security", "hints": ["Security add-ons help."]}
+                {"id": "q1", "prompt": "Which feature has the strongest correlation with churn?", "expected_answer_type": "text", "correct_answer": "Monthly_Charges"},
+                {"id": "q2", "prompt": "Is churn higher for month-to-month contracts? (yes/no)", "expected_answer_type": "text", "correct_answer": "yes"},
+                {"id": "q3", "prompt": "Name one feature that reduces churn risk.", "expected_answer_type": "text", "correct_answer": "online_security"}
             ]
         },
         {
@@ -2219,20 +2197,10 @@ async def initialize_simulations():
             "instructions": "1. Download the email dataset\n2. Preprocess the text data\n3. Choose appropriate features and model\n4. Submit the accuracy percentage of your model",
             "task_type": "development",
             "expected_answer_type": "percentage",
-            "hints": [
-                "Try classic text models (e.g., Naive Bayes).",
-                "Preprocess: lowercase, remove noise, tokenize.",
-                "Use TF-IDF or similar features."
-            ],
-            "checklist": [
-                "Preprocess text",
-                "Train model",
-                "Report accuracy"
-            ],
             "questions": [
-                {"id": "q1", "prompt": "What accuracy did your model achieve? (e.g., 85%)", "expected_answer_type": "percentage", "correct_answer": "85%", "hints": ["Baseline target is mid-80s."]},
-                {"id": "q2", "prompt": "Name one model suitable for spam detection.", "expected_answer_type": "text", "correct_answer": "naive bayes", "hints": ["Classics work well."]},
-                {"id": "q3", "prompt": "Name a common text feature extraction method.", "expected_answer_type": "text", "correct_answer": "tf-idf", "hints": ["Term weighting."]}
+                {"id": "q1", "prompt": "What's your AI guardian's kill rate against spam? (accuracy percentage, e.g., 85%)", "expected_answer_type": "percentage", "correct_answer": "85%"},
+                {"id": "q2", "prompt": "Which classic algorithm is your spam-fighting champion?", "expected_answer_type": "text", "correct_answer": "naive bayes"},
+                {"id": "q3", "prompt": "What's your secret weapon for turning text into model ammunition?", "expected_answer_type": "text", "correct_answer": "tf-idf"}
             ]
         },
         
@@ -2245,14 +2213,14 @@ async def initialize_simulations():
             "sub_field": "Deployment",
             "difficulty": "Medium",
             "estimated_time": "20 minutes",
-            "briefing": "You're a DevOps engineer responsible for containerizing applications. The development team has created a web app that needs to be deployed using Docker for consistency across environments.",
-            "instructions": "1. Download the application code\n2. Create a Dockerfile for the application\n3. Configure the container properly\n4. Submit the number of layers in your Docker image",
+            "briefing": "You're tasked with containerizing a small web application so it runs consistently across environments. Use Docker to define the base image, install dependencies, copy application code, and configure the runtime. Focus on small image size, security, and repeatable builds.",
+            "instructions": "1. Download the application code\n2. Create a Dockerfile with: base image, dependencies, application files, and runtime configuration\n3. Optimize for size and security (pin versions, use a small base image, limit layers)\n4. Build and run the image locally to verify\n5. Submit a summary of your image layers and choices",
             "task_type": "development",
             "expected_answer_type": "number",
             "questions": [
-                {"id": "q1", "prompt": "How many layers are in your Docker image?", "expected_answer_type": "number", "correct_answer": "4", "hints": ["Base, deps, code, runtime."]},
-                {"id": "q2", "prompt": "Should you pin dependency versions? (yes/no)", "expected_answer_type": "text", "correct_answer": "yes", "hints": ["Reproducibility."]},
-                {"id": "q3", "prompt": "Name one way to reduce image size.", "expected_answer_type": "text", "correct_answer": "alpine", "hints": ["Slim base images."]}
+                {"id": "q1", "prompt": "How many strategic layers does your Docker fortress have?", "expected_answer_type": "number", "correct_answer": "4"},
+                {"id": "q2", "prompt": "Should you pin dependency versions to avoid chaos? (yes/no)", "expected_answer_type": "text", "correct_answer": "yes"},
+                {"id": "q3", "prompt": "What's your secret weapon for creating lightweight containers?", "expected_answer_type": "text", "correct_answer": "alpine"}
             ]
         },
         {
@@ -2263,14 +2231,14 @@ async def initialize_simulations():
             "sub_field": "Monitoring",
             "difficulty": "Hard",
             "estimated_time": "30 minutes",
-            "briefing": "You're a Site Reliability Engineer (SRE) setting up monitoring for a critical production application. The team needs to be alerted when the application has issues.",
-            "instructions": "1. Download the application configuration\n2. Set up appropriate monitoring metrics\n3. Configure alerting thresholds\n4. Submit the number of monitoring rules you would create",
+            "briefing": "Design and configure a practical monitoring and alerting setup for a production web application. Ensure coverage across performance, errors, availability, and infrastructure resources. Provide clear alert thresholds and a dashboard plan for day-to-day visibility.",
+            "instructions": "1. Download the application architecture blueprint\n2. Define monitoring coverage: latency, error rate, traffic, saturation, uptime, database and resource metrics\n3. Configure alert thresholds and notification routes for critical events\n4. Build dashboards that surface key service and infrastructure views\n5. Submit a concise summary of rules, thresholds, and dashboards",
             "task_type": "analysis",
             "expected_answer_type": "number",
             "questions": [
-                {"id": "q1", "prompt": "How many monitoring rules will you create?", "expected_answer_type": "number", "correct_answer": "6", "hints": ["Latency, errors, resources, uptime, DB, memory."]},
-                {"id": "q2", "prompt": "Name one metric for performance SLOs.", "expected_answer_type": "text", "correct_answer": "response time", "hints": ["User-facing latency."]},
-                {"id": "q3", "prompt": "Which tool visualizes metrics?", "expected_answer_type": "text", "correct_answer": "grafana", "hints": ["Dashboards."]}
+                {"id": "q1", "prompt": "How many critical monitoring rules will protect the empire?", "expected_answer_type": "number", "correct_answer": "6"},
+                {"id": "q2", "prompt": "What's the most important metric for user happiness?", "expected_answer_type": "text", "correct_answer": "response time"},
+                {"id": "q3", "prompt": "Which tool transforms metrics into visual masterpieces?", "expected_answer_type": "text", "correct_answer": "grafana"}
             ]
         },
         
@@ -2408,9 +2376,12 @@ async def initialize_simulations():
     ]
     
     for sim in simulations:
-        existing = await db.simulations.find_one({"id": sim["id"]})
-        if not existing:
-            await db.simulations.insert_one(sim)
+        # Use upsert to replace existing simulations with new content
+        await db.simulations.replace_one(
+            {"id": sim["id"]}, 
+            sim, 
+            upsert=True
+        )
     
     return {"message": f"Initialized {len(simulations)} tech simulations successfully"}
 
@@ -2422,75 +2393,67 @@ async def merge_simulation_questions():
         # Software Engineering
         "se-debugging-1": {
             "questions": [
-                {"id": "q1", "prompt": "How many logic bugs are present?", "expected_answer_type": "number", "correct_answer": "3", "hints": ["Scan for assignment vs comparison."]},
-                {"id": "q2", "prompt": "Name one validation missing in discount handling.", "expected_answer_type": "text", "correct_answer": "negative discount", "hints": ["Think about bounds."]}
+                {"id": "q1", "prompt": "How many logic bugs are present?", "expected_answer_type": "number", "correct_answer": "5", "hints": ["Scan for assignment vs comparison (==)", "Check edge cases in checkout flow"]},
+                {"id": "q2", "prompt": "Name one validation missing in discount handling.", "expected_answer_type": "text", "correct_answer": "negative discount", "hints": ["Validate input range before applying", "Percent should not be below 0 or above 100"]}
             ],
-            "hints": [
-                "Look for assignment vs comparison in conditionals.",
-                "Validate discount inputs before applying them.",
-                "Consider edge cases during checkout (e.g., minimum order)."
-            ],
-            "checklist": [
-                "Scan functions for logic errors",
-                "Verify discount validation",
-                "Confirm checkout constraints"
-            ]
+           
         },
         "se-development-1": {
             "questions": [
-                {"id": "q1", "prompt": "What HTTP status code indicates successful login?", "expected_answer_type": "number", "correct_answer": "200", "hints": ["2xx class indicates success."]},
-                {"id": "q2", "prompt": "Should passwords be stored in plaintext? (yes/no)", "expected_answer_type": "text", "correct_answer": "no", "hints": ["Hashing is required."]}
+                {"id": "q1", "prompt": "What HTTP status code indicates successful login?", "expected_answer_type": "number", "correct_answer": "200", "hints": ["2xx means success", "Common OK status"]},
+                {"id": "q2", "prompt": "Should passwords be stored in plaintext? (yes/no)", "expected_answer_type": "text", "correct_answer": "no", "hints": ["Use hashing with salt", "Think about security best practices"]}
             ]
         },
         "se-testing-1": {
             "questions": [
-                {"id": "q1", "prompt": "How many unit tests will you write?", "expected_answer_type": "number", "correct_answer": "7", "hints": ["List error conditions too."]},
-                {"id": "q2", "prompt": "Name one edge case to test.", "expected_answer_type": "text", "correct_answer": "division by zero", "hints": ["Think divide()"]}
+                {"id": "q1", "prompt": "How many unit tests will you write?", "expected_answer_type": "number", "correct_answer": "7", "hints": ["Cover happy paths and errors", "Think about boundaries"]},
+                {"id": "q2", "prompt": "Name one edge case to test.", "expected_answer_type": "text", "correct_answer": "division by zero", "hints": ["Invalid inputs", "Exceptional conditions"]}
             ]
         },
         # Cybersecurity
         "cyber-password-1": {
             "questions": [
-                {"id": "q1", "prompt": "Provide at least two cracked passwords (comma-separated)", "expected_answer_type": "list", "correct_answer": "password123,admin,letmein", "hints": ["Use the given wordlist."]},
-                {"id": "q2", "prompt": "What hash algorithm is used?", "expected_answer_type": "text", "correct_answer": "md5", "hints": ["Legacy algorithm."]}
+                {"id": "q1", "prompt": "Provide at least two cracked passwords (comma-separated)", "expected_answer_type": "list", "correct_answer": "password123,admin,letmein", "hints": ["Start with common weak passwords", "Use the provided wordlist"]},
+                {"id": "q2", "prompt": "What hash algorithm is used?", "expected_answer_type": "text", "correct_answer": "md5", "hints": ["Look at the file header/title", "It's a widely known legacy hash"]}
             ]
         },
         "cyber-penetration-1": {
             "questions": [
-                {"id": "q1", "prompt": "What is the most critical vulnerability?", "expected_answer_type": "text", "correct_answer": "default_credentials", "hints": ["Router credentials."]},
-                {"id": "q2", "prompt": "Is telnet enabled? (yes/no)", "expected_answer_type": "text", "correct_answer": "yes", "hints": ["Legacy protocol."]}
+                {"id": "q1", "prompt": "What is the most critical vulnerability?", "expected_answer_type": "text", "correct_answer": "default_credentials", "hints": ["Think about easy entry points", "Factory settings often remain unchanged"]},
+                {"id": "q2", "prompt": "Is telnet enabled? (yes/no)", "expected_answer_type": "text", "correct_answer": "yes", "hints": ["Check legacy services", "Insecure remote access"]},
+                {"id": "q3", "prompt": "How many minutes would it take a real hacker to exploit this network?", "expected_answer_type": "number", "correct_answer": "5", "hints": ["Single-digit estimate", "Quick win for attackers"]}
             ]
         },
         # Data Science
         "ds-analysis-1": {
             "questions": [
-                {"id": "q1", "prompt": "Which feature has the strongest correlation with churn?", "expected_answer_type": "text", "correct_answer": "Monthly_Charges", "hints": ["Consider pricing variables."]},
-                {"id": "q2", "prompt": "Is churn higher for month-to-month contracts? (yes/no)", "expected_answer_type": "text", "correct_answer": "yes", "hints": ["Contract type matters."]},
-                {"id": "q3", "prompt": "Name one feature that reduces churn risk.", "expected_answer_type": "text", "correct_answer": "online_security", "hints": ["Security add-ons help."]}
+                {"id": "q1", "prompt": "Which feature has the strongest correlation with churn?", "expected_answer_type": "text", "correct_answer": "Monthly_Charges", "hints": ["Look at continuous pricing data", "Higher bills often drive churn"]},
+                {"id": "q2", "prompt": "Is churn higher for month-to-month contracts? (yes/no)", "expected_answer_type": "text", "correct_answer": "yes", "hints": ["Commitment length matters", "Short-term plans"]},
+                {"id": "q3", "prompt": "Name one feature that reduces churn risk.", "expected_answer_type": "text", "correct_answer": "online_security", "hints": ["Value-added services help retention", "Think protection features"]}
             ]
         },
         "ds-modeling-1": {
             "questions": [
-                {"id": "q1", "prompt": "What accuracy did your model achieve? (e.g., 85%)", "expected_answer_type": "percentage", "correct_answer": "85%", "hints": ["Baseline target is mid-80s."]},
-                {"id": "q2", "prompt": "Name one model suitable for spam detection.", "expected_answer_type": "text", "correct_answer": "naive bayes", "hints": ["Classics work well."]},
-                {"id": "q3", "prompt": "Name a common text feature extraction method.", "expected_answer_type": "text", "correct_answer": "tf-idf", "hints": ["Term weighting."]}
+                {"id": "q1", "prompt": "What accuracy did your model achieve? (e.g., 85%)", "expected_answer_type": "percentage", "correct_answer": "85%", "hints": ["Two digits and a %", "Aim for mid-80s"]},
+                {"id": "q2", "prompt": "Name one model suitable for spam detection.", "expected_answer_type": "text", "correct_answer": "naive bayes", "hints": ["Classic probabilistic model", "Also consider SVM"]},
+                {"id": "q3", "prompt": "Name a common text feature extraction method.", "expected_answer_type": "text", "correct_answer": "tf-idf", "hints": ["Term weighting", "Beyond bag-of-words"]}
             ]
         },
         # DevOps
         "devops-deployment-1": {
             "questions": [
-                {"id": "q1", "prompt": "How many layers are in your Docker image?", "expected_answer_type": "number", "correct_answer": "4", "hints": ["Base, deps, code, runtime."]},
-                {"id": "q2", "prompt": "Should you pin dependency versions? (yes/no)", "expected_answer_type": "text", "correct_answer": "yes", "hints": ["Reproducibility."]},
-                {"id": "q3", "prompt": "Name one way to reduce image size.", "expected_answer_type": "text", "correct_answer": "alpine", "hints": ["Slim base images."]}
+                {"id": "q1", "prompt": "How many layers are in your Docker image?", "expected_answer_type": "number", "correct_answer": "4", "hints": ["Base, deps, code, runtime", "Think build layering"]},
+                {"id": "q2", "prompt": "Should you pin dependency versions? (yes/no)", "expected_answer_type": "text", "correct_answer": "yes", "hints": ["Repeatable builds", "Avoid 'latest'"]},
+                {"id": "q3", "prompt": "Name one way to reduce image size.", "expected_answer_type": "text", "correct_answer": "alpine", "hints": ["Choose smaller base images", "Multi-stage builds help"]}
             ]
         },
-        **{"devops-monitoring-1": {
+        "devops-monitoring-1": {
             "questions": [
-                {"id": "q1", "prompt": "How many monitoring rules will you create?", "expected_answer_type": "number", "correct_answer": "6", "hints": ["Latency, errors, resources, uptime, DB, memory."]},
-                {"id": "q2", "prompt": "Name one metric for performance SLOs.", "expected_answer_type": "text", "correct_answer": "response time", "hints": ["User-facing latency."]},
-                {"id": "q3", "prompt": "Which tool visualizes metrics?", "expected_answer_type": "text", "correct_answer": "grafana", "hints": ["Dashboards."]}
+                {"id": "q1", "prompt": "How many monitoring rules will you create?", "expected_answer_type": "number", "correct_answer": "6", "hints": ["Cover latency, errors, traffic", "Don't forget resource saturation"]},
+                {"id": "q2", "prompt": "Name one metric for performance SLOs.", "expected_answer_type": "text", "correct_answer": "response time", "hints": ["User-facing latency", "Think UX"]},
+                {"id": "q3", "prompt": "Which tool visualizes metrics?", "expected_answer_type": "text", "correct_answer": "grafana", "hints": ["Often paired with Prometheus", "Dashboards"]}
             ]
-        }},
+        },
         # Cloud
         "cloud-aws-1": {
             "questions": [

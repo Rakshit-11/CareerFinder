@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
@@ -22,12 +22,61 @@ import {
   CheckCircle,
   ArrowRight,
   Brain,
-  BarChart3
+  BarChart3,
+  Zap,
+  Flame,
+  Shield,
+  Rocket,
+  AlertTriangle,
+  Timer
 } from 'lucide-react';
 import './App.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+//
+
+// Simple metadata for known badges; unknown badges get sensible defaults
+const BADGE_META = {
+  'Debugging Specialist': {
+    icon: '🛠️',
+    color: 'from-rose-50 to-orange-50',
+    description: 'Identified all critical bugs in the codebase',
+    rarity: 'Common',
+    rarityPct: '12.4%'
+  },
+  'API Development Expert': {
+    icon: '🔗',
+    color: 'from-blue-50 to-cyan-50',
+    description: 'Built a secure authentication API',
+    rarity: 'Common',
+    rarityPct: '10.8%'
+  },
+  'Quality Assurance Professional': {
+    icon: '🧪',
+    color: 'from-indigo-50 to-violet-50',
+    description: 'Wrote comprehensive unit tests',
+    rarity: 'Common',
+    rarityPct: '9.6%'
+  },
+  'Cloud Architect': {
+    icon: '☁️',
+    color: 'from-sky-50 to-blue-50',
+    description: 'Designed a scalable cloud architecture',
+    rarity: 'Rare',
+    rarityPct: '5.1%'
+  },
+  'Monitoring Strategist': {
+    icon: '📈',
+    color: 'from-emerald-50 to-green-50',
+    description: 'Implemented effective monitoring and alerts',
+    rarity: 'Common',
+    rarityPct: '8.3%'
+  },
+};
+
+ 
 
 // Auth Context
 const AuthContext = React.createContext();
@@ -303,6 +352,9 @@ const Dashboard = () => {
   const [questionAnswers, setQuestionAnswers] = useState({});
   const [questionHintsRevealed, setQuestionHintsRevealed] = useState({});
   const [questionResults, setQuestionResults] = useState({});
+  const [streakCount, setStreakCount] = useState(0);
+  const [showAchievement, setShowAchievement] = useState(null);
+  const [totalScore, setTotalScore] = useState(0);
 
   useEffect(() => {
     initializeData();
@@ -438,10 +490,17 @@ const Dashboard = () => {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
+  const showAchievementNotification = (achievement) => {
+    setShowAchievement(achievement);
+    setTimeout(() => setShowAchievement(null), 3000);
+  };
+
   const revealNextHint = () => {
     const totalHints = (selectedSimulation?.hints || []).length;
     if (revealedHints < totalHints) {
       setRevealedHints(revealedHints + 1);
+      // Small penalty for using hints
+      setTotalScore(prev => Math.max(0, prev - 5));
     }
   };
 
@@ -505,10 +564,55 @@ const Dashboard = () => {
       localStorage.setItem(key, String(nextAttempts));
       setAttempts(nextAttempts);
 
-      // Optional user refresh only if correctness changed badge (rare for single q)
-      if (response.data.skill_badge_earned) {
-        await fetchUser();
-        toast.success(`🏆 Skill badge earned: ${response.data.skill_badge_earned}!`);
+      // Handle scoring and achievements
+      const isCorrect = thisQ ? thisQ.is_correct : response.data.is_correct;
+      if (isCorrect) {
+        const points = 100 - (revealedHints * 10) - (attempts * 5);
+        setTotalScore(prev => prev + Math.max(20, points));
+        setStreakCount(prev => prev + 1);
+        
+        // Achievement notifications
+        if (streakCount + 1 === 3) {
+          showAchievementNotification({ title: "🔥 Hot Streak!", description: "3 correct answers in a row!" });
+        } else if (streakCount + 1 === 5) {
+          showAchievementNotification({ title: "⚡ Lightning Fast!", description: "5 correct answers in a row!" });
+        }
+        
+        toast.success('🎯 Correct! Great job!');
+      } else {
+        setStreakCount(0);
+        toast.error('❌ Not quite right, but keep trying!');
+      }
+
+      // If all questions are now correct, auto-finalize to award badge
+      try {
+        const allQs = (selectedSimulation.questions || []).map(q => q.id);
+        const allCorrect = allQs.length > 0 && allQs.every(qid =>
+          (qid === questionId ? (thisQ ? thisQ.is_correct : response.data.is_correct) : (questionResults[qid]?.is_correct))
+        );
+        if (allCorrect) {
+          const answersArray = (selectedSimulation.questions || []).map((q) => ({
+            question_id: q.id,
+            answer: String((qid => (qid === questionId ? answer : (questionAnswers[qid] || '')))(q.id)).trim(),
+          }));
+          const finalizeResp = await axios.post(
+            `${API}/simulations/submit`,
+            { simulation_id: selectedSimulation.id, answers: answersArray },
+            { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+          );
+          // Show completion card on the simulation page
+          setSubmission(finalizeResp.data);
+          if (finalizeResp.data?.skill_badge_earned) {
+            await fetchUser();
+            showAchievementNotification({ 
+              title: "🏆 Badge Earned!", 
+              description: finalizeResp.data.skill_badge_earned 
+            });
+            toast.success(`🏆 Skill badge earned: ${finalizeResp.data.skill_badge_earned}!`);
+          }
+        }
+      } catch (e) {
+        console.warn('Auto-finalize skipped:', e?.response?.data || e?.message);
       }
 
       toast.success(thisQ && thisQ.is_correct ? 'Correct!' : 'Submitted');
@@ -614,10 +718,13 @@ const Dashboard = () => {
                 <h1 className="text-xl font-semibold">{selectedField.name}</h1>
               </div>
             </div>
-            <Button variant="outline" onClick={logout}>
-              <User className="h-4 w-4 mr-2" />
-              {user.username}
-            </Button>
+            <div className="flex items-center space-x-2">
+              <BadgesNav />
+              <Button variant="outline" onClick={logout}>
+                <User className="h-4 w-4 mr-2" />
+                {user.username}
+              </Button>
+            </div>
           </div>
         </header>
 
@@ -711,30 +818,98 @@ const Dashboard = () => {
               >
                 ← Back to {selectedField?.name || 'Tech Fields'}
               </Button>
-              <h1 className="text-xl font-semibold">{selectedSimulation.title}</h1>
+              <h1 className="text-xl font-semibold flex items-center">
+                {selectedSimulation.title}
+                {selectedSimulation.title.includes('🚨') && <AlertTriangle className="h-5 w-5 text-red-500 ml-2 animate-pulse" />}
+                {selectedSimulation.title.includes('🕵️') && <Shield className="h-5 w-5 text-blue-500 ml-2" />}
+                {selectedSimulation.title.includes('🤖') && <Zap className="h-5 w-5 text-purple-500 ml-2" />}
+                {selectedSimulation.title.includes('🐳') && <Rocket className="h-5 w-5 text-cyan-500 ml-2" />}
+              </h1>
               <div className="hidden md:flex items-center text-sm text-gray-600 space-x-3">
-                <span>⏱ {formatElapsed(elapsed)}</span>
+                <div className="flex items-center space-x-1">
+                  <Timer className="h-4 w-4" />
+                  <span className={elapsed > 1200 ? 'text-red-600 font-bold animate-pulse' : elapsed > 600 ? 'text-orange-600 font-semibold' : 'text-green-600'}>
+                    {formatElapsed(elapsed)}
+                  </span>
+                </div>
                 <span>•</span>
-                <span>Attempts: {attempts}</span>
+                <div className="flex items-center space-x-1">
+                  <Flame className="h-4 w-4" />
+                  <span>Attempts: {attempts}</span>
+                </div>
+                <span>•</span>
+                <div className="flex items-center space-x-1">
+                  <Star className="h-4 w-4 text-yellow-500" />
+                  <span className="font-semibold text-yellow-600">Score: {totalScore}</span>
+                </div>
+                {streakCount > 0 && (
+                  <>
+                    <span>•</span>
+                    <div className="flex items-center space-x-1">
+                      <Zap className="h-4 w-4 text-orange-500" />
+                      <span className="font-semibold text-orange-600 animate-pulse">Streak: {streakCount}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
-            <Button variant="outline" onClick={logout}>
-              <User className="h-4 w-4 mr-2" />
-              {user.username}
-            </Button>
+            <div className="flex items-center space-x-2">
+              <BadgesNav />
+              <Button variant="outline" onClick={logout}>
+                <User className="h-4 w-4 mr-2" />
+                {user.username}
+              </Button>
+            </div>
           </div>
         </header>
 
+        {/* Achievement Notification */}
+        {showAchievement && (
+          <div className="fixed top-20 right-4 z-50 bg-gradient-to-r from-yellow-400 to-orange-500 text-white p-4 rounded-lg shadow-lg animate-bounce">
+            <div className="flex items-center space-x-2">
+              <Trophy className="h-6 w-6" />
+              <div>
+                <div className="font-bold">{showAchievement.title}</div>
+                <div className="text-sm">{showAchievement.description}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-4xl mx-auto">
-            <Card className="mb-8">
-              <CardHeader>
+            <Card className="mb-8 border-2 border-orange-200 shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50">
                 <div className="flex justify-between items-start">
                   <div>
-                    <CardTitle className="text-2xl">{selectedSimulation.title}</CardTitle>
-                    <CardDescription className="mt-2 text-base">
+                    <CardTitle className="text-2xl flex items-center">
+                      {selectedSimulation.title}
+                      {selectedSimulation.title.includes('URGENT') && <AlertTriangle className="h-6 w-6 text-red-500 ml-2 animate-bounce" />}
+                    </CardTitle>
+                    <CardDescription className="mt-2 text-base font-medium">
                       {selectedSimulation.description}
                     </CardDescription>
+                    {/* Progress Bar */}
+                    <div className="mt-4">
+                      <div className="flex justify-between text-sm text-gray-600 mb-1">
+                        <span>Mission Progress</span>
+                        <span>{Math.min(100, Math.floor((elapsed / (parseFloat(selectedSimulation.estimated_time) * 60)) * 100))}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-1000 ${
+                            elapsed > parseFloat(selectedSimulation.estimated_time) * 60 
+                              ? 'bg-red-500 animate-pulse' 
+                              : elapsed > parseFloat(selectedSimulation.estimated_time) * 60 * 0.8 
+                                ? 'bg-orange-500' 
+                                : 'bg-green-500'
+                          }`}
+                          style={{ 
+                            width: `${Math.min(100, Math.floor((elapsed / (parseFloat(selectedSimulation.estimated_time) * 60)) * 100))}%` 
+                          }}
+                        ></div>
+                      </div>
+                    </div>
                   </div>
                   <div className="flex flex-col items-end space-y-2">
                     <Badge className={getDifficultyColor(selectedSimulation.difficulty)}>
@@ -830,10 +1005,20 @@ const Dashboard = () => {
                           const totalHints = (q.hints || []).length;
                           const result = questionResults[q.id];
                           return (
-                          <div key={q.id} className="border rounded-md p-3 bg-white">
+                          <div key={q.id} className={`border rounded-md p-3 transition-all duration-300 ${
+                            result?.is_correct 
+                              ? 'bg-green-50 border-green-300 shadow-lg' 
+                              : result && !result.is_correct 
+                                ? 'bg-red-50 border-red-300' 
+                                : 'bg-white border-gray-200 hover:border-orange-300'
+                          }`}>
                               <div className="flex items-start justify-between">
                                 <div className="flex-1 pr-4">
-                                  <Label htmlFor={`q_${q.id}`}>{q.prompt}</Label>
+                                  <Label htmlFor={`q_${q.id}`} className="flex items-center">
+                                    {q.prompt}
+                                    {result?.is_correct && <CheckCircle className="h-4 w-4 text-green-600 ml-2" />}
+                                    {result && !result.is_correct && <AlertTriangle className="h-4 w-4 text-red-600 ml-2" />}
+                                  </Label>
                                   <Input
                                     id={`q_${q.id}`}
                                     value={questionAnswers[q.id] || ''}
@@ -843,17 +1028,41 @@ const Dashboard = () => {
                                       const next = maxLen > 0 ? input.slice(0, maxLen) : input;
                                       setQuestionAnswers({ ...questionAnswers, [q.id]: next });
                                     }}
-                                    placeholder={q.answer_mask || ''}
+                                    placeholder={q.answer_mask || 'Enter your answer...'}
                                     maxLength={q.max_length || undefined}
-                                    className="mt-2"
+                                    className={`mt-2 transition-all duration-200 ${
+                                      result?.is_correct 
+                                        ? 'border-green-400 bg-green-50' 
+                                        : result && !result.is_correct 
+                                          ? 'border-red-400 bg-red-50' 
+                                          : 'border-gray-300 focus:border-orange-400'
+                                    }`}
+                                    disabled={result?.is_correct}
                                   />
                                 </div>
                                 <div className="flex items-center space-x-2">
-                                  <Button size="sm" variant="outline" onClick={() => revealNextQuestionHint(q.id)} disabled={revealed >= totalHints}>
-                                    {revealed < totalHints ? 'Hint' : 'No hints left'}
-                                  </Button>
-                                  <Button size="sm" onClick={() => submitSingleQuestion(q.id)} disabled={loading} className="bg-green-600 hover:bg-green-700 text-white">
-                                    Submit
+                                  {totalHints > 0 && (
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline" 
+                                      onClick={() => revealNextQuestionHint(q.id)} 
+                                      disabled={revealed >= totalHints || result?.is_correct}
+                                      className="hover:bg-orange-50"
+                                    >
+                                      💡 {revealed < totalHints ? `Hint (${totalHints - revealed} left)` : 'All hints shown'}
+                                    </Button>
+                                  )}
+                                  <Button 
+                                    size="sm" 
+                                    onClick={() => submitSingleQuestion(q.id)} 
+                                    disabled={loading || result?.is_correct} 
+                                    className={`transition-all duration-200 ${
+                                      result?.is_correct 
+                                        ? 'bg-green-600 hover:bg-green-700' 
+                                        : 'bg-blue-600 hover:bg-blue-700'
+                                    } text-white`}
+                                  >
+                                    {result?.is_correct ? '✅ Correct!' : '🚀 Submit'}
                                   </Button>
                                 </div>
                               </div>
@@ -865,8 +1074,26 @@ const Dashboard = () => {
                                 </ul>
                               )}
                               {result && (
-                                <div className={`mt-2 rounded-md p-2 text-sm ${result.is_correct ? 'bg-green-50 border border-green-200 text-green-900' : 'bg-blue-50 border border-blue-200 text-blue-900'}`}>
-                                  {result.feedback || (result.is_correct ? 'Correct!' : 'Submitted')}
+                                <div className={`mt-2 rounded-md p-3 text-sm transition-all duration-300 ${
+                                  result.is_correct 
+                                    ? 'bg-green-50 border border-green-200 text-green-900 shadow-md' 
+                                    : 'bg-blue-50 border border-blue-200 text-blue-900'
+                                }`}>
+                                  <div className="flex items-start space-x-2">
+                                    {result.is_correct ? (
+                                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 animate-pulse" />
+                                    ) : (
+                                      <Brain className="h-5 w-5 text-blue-600 mt-0.5" />
+                                    )}
+                                    <div>
+                                      <div className="font-semibold">
+                                        {result.is_correct ? '🎉 Excellent work!' : '💭 AI Feedback:'}
+                                      </div>
+                                      <div className="mt-1">
+                                        {result.feedback || (result.is_correct ? 'Perfect answer! You nailed it!' : 'Keep trying - you\'re on the right track!')}
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -885,14 +1112,16 @@ const Dashboard = () => {
                         />
                       </div>
                     )}
-                    <Button 
-                      onClick={submitAnswer} 
-                      disabled={loading}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      <Send className="h-4 w-4 mr-2" />
-                      {loading ? 'Submitting...' : 'Submit Answer'}
-                    </Button>
+                    {((selectedSimulation.questions || []).length === 0) && (
+                      <Button 
+                        onClick={submitAnswer} 
+                        disabled={loading}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <Send className="h-4 w-4 mr-2" />
+                        {loading ? 'Submitting...' : 'Submit Answer'}
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -989,8 +1218,8 @@ const Dashboard = () => {
           <div className="flex items-center space-x-4">
             <div className="text-right">
               <p className="text-sm font-medium">{user.username}</p>
-              <p className="text-xs text-gray-600">{user.skill_badges.length} badges earned</p>
             </div>
+            <BadgesNav />
             <Button variant="outline" onClick={logout}>
               <User className="h-4 w-4 mr-2" />
               Logout
@@ -1017,7 +1246,7 @@ const Dashboard = () => {
               <CardContent className="p-6 text-center">
                 <Trophy className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
                 <div className="text-2xl font-bold">{user.skill_badges.length}</div>
-                <div className="text-sm text-gray-600">Skill Badges</div>
+                <div className="text-sm text-gray-600">Badges</div>
               </CardContent>
             </Card>
             <Card>
@@ -1036,26 +1265,7 @@ const Dashboard = () => {
             </Card>
           </div>
 
-          {/* Skill Badges */}
-          {user.skill_badges.length > 0 && (
-            <Card className="mb-8">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Trophy className="h-5 w-5 mr-2 text-yellow-600" />
-                  Your Skill Badges
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {user.skill_badges.map((badge, index) => (
-                    <Badge key={index} className="bg-yellow-100 text-yellow-800 border-yellow-300">
-                      🏆 {badge}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {/* Skill Badges list removed from Dashboard (badges now live on /badges page) */}
 
           {/* Tech Fields */}
           <Card>
@@ -1128,6 +1338,109 @@ const Dashboard = () => {
   );
 };
 
+// Small component: navigation button to Badges page
+const BadgesNav = () => {
+  const navigate = useNavigate();
+  return (
+    <Button variant="outline" onClick={() => navigate('/badges')}>
+      <Trophy className="h-4 w-4 mr-2 text-yellow-600" />
+      Badges
+    </Button>
+  );
+};
+
+ 
+
+// Badges Page Component
+const BadgesPage = () => {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center space-x-3">
+            <Button variant="outline" onClick={() => navigate('/dashboard')}>← Back</Button>
+            <h1 className="text-xl font-semibold flex items-center">
+              <Trophy className="h-5 w-5 mr-2 text-yellow-600" /> Your Badges
+            </h1>
+          </div>
+          <Button variant="outline" onClick={logout}>
+            <User className="h-4 w-4 mr-2" />
+            {user?.username}
+          </Button>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+
+          {/* Badges Grid */}
+          {(user?.skill_badges || []).length > 0 && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Trophy className="h-5 w-5 mr-2 text-yellow-600" /> Badges
+                </CardTitle>
+                <CardDescription>A showcase of your achievements</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {user.skill_badges.map((name, idx) => {
+                    const meta = BADGE_META[name] || { 
+                      icon: '🏅', 
+                      color: 'from-gray-50 to-slate-50', 
+                      description: `Earned for completing the "${name}" simulation`,
+                      rarity: 'Common',
+                      rarityPct: ''
+                    };
+                    return (
+                      <div key={idx} className="relative flex items-center p-4 rounded-xl border bg-white hover:shadow-md transition-shadow">
+                        {/* Emblem */}
+                        <div className={`h-16 w-16 mr-4 rounded-xl bg-gradient-to-br ${meta.color} flex items-center justify-center text-2xl`}>
+                          <span aria-hidden>{meta.icon}</span>
+                        </div>
+                        {/* Text */}
+                        <div className="flex-1">
+                          <div className="font-semibold text-gray-900">{name}</div>
+                          <div className="text-sm text-gray-600 mt-0.5">{meta.description}</div>
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className={`text-xs px-2 py-0.5 rounded-full border ${meta.rarity === 'Rare' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                              {meta.rarity}{meta.rarityPct ? `: ${meta.rarityPct}` : ''}
+                            </span>
+                          </div>
+                        </div>
+                        {/* Completed check */}
+                        <div className="absolute bottom-2 right-2 bg-green-600 rounded-full p-1">
+                          <CheckCircle className="h-4 w-4 text-white" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>How to earn more badges</CardTitle>
+              <CardDescription>Pick simulations from different fields and complete all questions correctly.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="list-disc pl-5 space-y-1 text-gray-700">
+                <li>Complete all questions in a simulation to unlock its badge.</li>
+                <li>Use hints strategically to learn, but aim for fewer attempts for higher scores.</li>
+                <li>Explore multiple fields to diversify your badge collection.</li>
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Main App Component
 function App() {
   const { user, loading } = useAuth();
@@ -1155,6 +1468,10 @@ function App() {
           <Route
             path="/dashboard"
             element={user ? <Dashboard /> : <Navigate to="/" replace />}
+          />
+          <Route
+            path="/badges"
+            element={user ? <BadgesPage /> : <Navigate to="/" replace />}
           />
         </Routes>
       </div>
